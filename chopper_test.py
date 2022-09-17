@@ -2,12 +2,17 @@ import hatchet as ht
 from hatchet.util import timer
 import pandas as pd
 import os
+from natsort import natsorted
 
 
 def main():
+    path_to_directory = "../hatchet-data/quicksilver-only-time"
+    directory = natsorted(os.listdir(path_to_directory))
+    directory = [path for path in directory if "hpctoolkit" in path]
+
     num_processes = [64, 128, 256, 512]
     num_runs = 5
-    directory = "../hatchet-data/quicksilver-only-time"
+    metric = "REALTIME (sec) (I)"
 
     # average time for each process count
     file_read_times = []
@@ -15,7 +20,7 @@ def main():
     load_imbalance_times = []
     hot_path_times = []
 
-    for path in os.listdir(directory):
+    for path in directory:
         # timers
         file_read_timer = timer.Timer()
         flat_profile_timer = timer.Timer()
@@ -31,15 +36,15 @@ def main():
         for run in range(num_runs):
             # file read
             file_read_timer.start_phase(f"file read {run}")
-            gf = ht.GraphFrame.from_hpctoolkit(directory + "/" + path)
-            gf.default_metric = "REALTIME (sec) (I)"
+            gf = ht.GraphFrame.from_hpctoolkit(path_to_directory + "/" + path)
             # gf = ht.GraphFrame.from_caliper("hatchet/tests/data/caliper-lulesh-json/lulesh-annotation-profile.json")
             file_read_timer.end_phase()
             file_read_tt += list(file_read_timer._times.values())[run].total_seconds()
+            gf.default_metric = metric
 
             # flat profile
             flat_profile_timer.start_phase(f"flat_profile {run}")
-            gf.flat_profile("REALTIME (sec) (I)")
+            gf.flat_profile(metric)
             flat_profile_timer.end_phase()
             flat_profile_tt += list(flat_profile_timer._times.values())[
                 run
@@ -47,7 +52,7 @@ def main():
 
             # load_imbalance
             load_imbalance_timer.start_phase(f"load_imbalance {run}")
-            gf.load_imbalance("REALTIME (sec) (I)")
+            gf.load_imbalance(metric)
             load_imbalance_timer.end_phase()
             load_imbalance_tt += list(load_imbalance_timer._times.values())[
                 run
@@ -55,7 +60,7 @@ def main():
 
             # hot_path
             hot_path_timer.start_phase(f"hot_path {run}")
-            gf.hot_path(metric="REALTIME (sec) (I)")
+            gf.hot_path(metric=metric)
             hot_path_timer.end_phase()
             hot_path_tt += list(hot_path_timer._times.values())[run].total_seconds()
 
