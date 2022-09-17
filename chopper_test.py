@@ -32,13 +32,14 @@ def main():
             # file read
             file_read_timer.start_phase(f"file read {run}")
             gf = ht.GraphFrame.from_hpctoolkit(directory + "/" + path)
+            gf.default_metric = "REALTIME (sec) (I)"
             # gf = ht.GraphFrame.from_caliper("hatchet/tests/data/caliper-lulesh-json/lulesh-annotation-profile.json")
             file_read_timer.end_phase()
             file_read_tt += list(file_read_timer._times.values())[run].total_seconds()
 
             # flat profile
             flat_profile_timer.start_phase(f"flat_profile {run}")
-            gf.flat_profile()
+            gf.flat_profile("REALTIME (sec) (I)")
             flat_profile_timer.end_phase()
             flat_profile_tt += list(flat_profile_timer._times.values())[
                 run
@@ -46,7 +47,7 @@ def main():
 
             # load_imbalance
             load_imbalance_timer.start_phase(f"load_imbalance {run}")
-            gf.load_imbalance("time")
+            gf.load_imbalance("REALTIME (sec) (I)")
             load_imbalance_timer.end_phase()
             load_imbalance_tt += list(load_imbalance_timer._times.values())[
                 run
@@ -54,7 +55,7 @@ def main():
 
             # hot_path
             hot_path_timer.start_phase(f"hot_path {run}")
-            gf.hot_path()
+            gf.hot_path(metric="REALTIME (sec) (I)")
             hot_path_timer.end_phase()
             hot_path_tt += list(hot_path_timer._times.values())[run].total_seconds()
 
