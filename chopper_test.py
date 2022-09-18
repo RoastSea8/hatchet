@@ -9,7 +9,9 @@ def main():
     path_to_directory = "../hatchet-data/quicksilver-only-time"
     directory = natsorted(os.listdir(path_to_directory))
     directory = [
-        path for path in directory if os.path.isdir(path) and "hpctoolkit" in path
+        path
+        for path in directory
+        if os.path.isdir(path_to_directory + "/" + path) and "hpctoolkit" in path
     ]
 
     num_processes = [64, 128, 256, 512]
