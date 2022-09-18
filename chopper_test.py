@@ -8,7 +8,9 @@ from natsort import natsorted
 def main():
     path_to_directory = "../hatchet-data/quicksilver-only-time"
     directory = natsorted(os.listdir(path_to_directory))
-    directory = [path for path in directory if "hpctoolkit" in path]
+    directory = [
+        path for path in directory if os.path.isdir(path) and "hpctoolkit" in path
+    ]
 
     num_processes = [64, 128, 256, 512]
     num_runs = 5
