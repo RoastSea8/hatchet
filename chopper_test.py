@@ -107,7 +107,9 @@ def main():
         json_data[function] = d
         with open("data.json", "w") as f:
             json.dump(json_data, f)
-        dataframes.append(pd.DataFrame(d))
+
+    for func_data in json_data.values():
+        dataframes.append(pd.DataFrame(func_data))
 
     df_all = pd.concat(dataframes)
     df_pivot = df_all.pivot_table(
