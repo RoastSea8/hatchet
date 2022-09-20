@@ -1,105 +1,122 @@
-import hatchet as ht
-from hatchet.util import timer
-import pandas as pd
 import os
+import json
+import pandas as pd
+import hatchet as ht
 from natsort import natsorted
+from hatchet.util import timer
+
+
+def reset_time(data):
+    for function in data.keys():
+        data[function]["timer"] = timer.Timer()
+        data[function]["total_time"] = 0
+
+
+def init_json(filename):
+    try:
+        with open(str(filename)) as f:
+            json_data = json.load(f)
+    except FileNotFoundError:
+        with open(str(filename), "w") as f:
+            json_data = {}
+    return json_data
 
 
 def main():
+
+    # ---------------------------------------------------------------------------------
+    json_data = init_json("data.json")
     path_to_directory = "../hatchet-data/quicksilver-only-time"
-    directory = natsorted(os.listdir(path_to_directory))
-    directory = [
-        path
-        for path in directory
-        if os.path.isdir(path_to_directory + "/" + path) and "hpctoolkit" in path
-    ]
-
-    num_processes = [64, 128, 256, 512]
-    num_runs = 5
+    # data identifier must be present in filename
+    data_identifier = "hpctoolkit"
+    reader_function = ht.GraphFrame.from_hpctoolkit
     metric = "REALTIME (sec) (I)"
-
-    # average time for each process count
-    file_read_times = []
-    flat_profile_times = []
-    load_imbalance_times = []
-    hot_path_times = []
-
-    for path in directory:
-        # timers
-        file_read_timer = timer.Timer()
-        flat_profile_timer = timer.Timer()
-        load_imbalance_timer = timer.Timer()
-        hot_path_timer = timer.Timer()
-
-        # total times
-        file_read_tt = 0
-        flat_profile_tt = 0
-        load_imbalance_tt = 0
-        hot_path_tt = 0
-
-        for run in range(num_runs):
-            # file read
-            file_read_timer.start_phase(f"file read {run}")
-            gf = ht.GraphFrame.from_hpctoolkit(path_to_directory + "/" + path)
-            # gf = ht.GraphFrame.from_caliper("hatchet/tests/data/caliper-lulesh-json/lulesh-annotation-profile.json")
-            file_read_timer.end_phase()
-            file_read_tt += list(file_read_timer._times.values())[run].total_seconds()
-            gf.default_metric = metric
-
-            # flat profile
-            flat_profile_timer.start_phase(f"flat_profile {run}")
-            gf.flat_profile(metric)
-            flat_profile_timer.end_phase()
-            flat_profile_tt += list(flat_profile_timer._times.values())[
-                run
-            ].total_seconds()
-
-            # load_imbalance
-            load_imbalance_timer.start_phase(f"load_imbalance {run}")
-            gf.load_imbalance(metric)
-            load_imbalance_timer.end_phase()
-            load_imbalance_tt += list(load_imbalance_timer._times.values())[
-                run
-            ].total_seconds()
-
-            # hot_path
-            hot_path_timer.start_phase(f"hot_path {run}")
-            gf.hot_path(metric=metric)
-            hot_path_timer.end_phase()
-            hot_path_tt += list(hot_path_timer._times.values())[run].total_seconds()
-
-        file_read_times.append(file_read_tt / num_runs)
-        flat_profile_times.append(flat_profile_tt / num_runs)
-        load_imbalance_times.append(load_imbalance_tt / num_runs)
-        hot_path_times.append(hot_path_tt / num_runs)
-
+    num_runs = 5
+    num_processes = [64, 128, 256, 512]
     functions = [
         "file read",
         "flat_profile",
         "load_imbalance",
         "hot_path",
     ]
-    times = [
-        file_read_times,
-        flat_profile_times,
-        load_imbalance_times,
-        hot_path_times,
-    ]
+    # ---------------------------------------------------------------------------------
+
+    directory = natsorted(os.listdir(path_to_directory))
+    directory = [path for path in directory if data_identifier in path]
+    data = {}
+    for function in functions:
+        data[function] = dict(
+            {
+                "timer": timer.Timer(),
+                "total_time": 0,
+                # list of average times for each process count
+                "times_list": [],
+                # number rows in dataframes for each dataset
+                "Rows in Dataframe": [],
+            }
+        )
     dataframes = []
 
-    for i in range(len(functions)):
-        data = {
+    for path in directory:
+        reset_time(data)
+        for run in range(num_runs):
+            # file read
+            data["file read"]["timer"].start_phase(f"file read {run}")
+            gf = reader_function(path_to_directory + "/" + path)
+            data["file read"]["timer"].end_phase()
+            data["file read"]["total_time"] += list(
+                data["file read"]["timer"]._times.values()
+            )[run].total_seconds()
+            gf.default_metric = metric
+
+            # flat profile
+            data["flat_profile"]["timer"].start_phase(f"flat_profile {run}")
+            gf.flat_profile(metric)
+            data["flat_profile"]["timer"].end_phase()
+            data["flat_profile"]["total_time"] += list(
+                data["flat_profile"]["timer"]._times.values()
+            )[run].total_seconds()
+
+            # load_imbalance
+            data["load_imbalance"]["timer"].start_phase(f"load_imbalance {run}")
+            gf.load_imbalance(metric)
+            data["load_imbalance"]["timer"].end_phase()
+            data["load_imbalance"]["total_time"] += list(
+                data["load_imbalance"]["timer"]._times.values()
+            )[run].total_seconds()
+
+            # hot_path
+            data["hot_path"]["timer"].start_phase(f"hot_path {run}")
+            gf.hot_path(metric=metric)
+            data["hot_path"]["timer"].end_phase()
+            data["hot_path"]["total_time"] += list(
+                data["hot_path"]["timer"]._times.values()
+            )[run].total_seconds()
+
+        for function in functions:
+            data[function]["Rows in Dataframe"].append(gf.dataframe.shape[0])
+            data[function]["times_list"].append(data[function]["total_time"] / num_runs)
+
+    for function in functions:
+        d = {
             "num_processes": num_processes,
-            "function": [functions[i]] * len(num_processes),
-            "time": times[i],
+            "Rows in Dataframe": data[function]["Rows in Dataframe"],
+            "function": [function] * len(num_processes),
+            "time": data[function]["times_list"],
         }
-        dataframes.append(pd.DataFrame(data))
+        json_data[function] = d
+        with open("data.json", "w") as f:
+            json.dump(json_data, f)
+        dataframes.append(pd.DataFrame(d))
 
     df_all = pd.concat(dataframes)
-    df_pivot = df_all.pivot(index="num_processes", columns="function", values="time")
+    df_pivot = df_all.pivot_table(
+        index="Rows in Dataframe", columns="function", values="time"
+    )
+    df_plot = df_pivot.loc[:, :].plot.line(figsize=(10, 7))
 
     print(df_pivot)
-    print(df_pivot.loc[:, :].plot.line(figsize=(10, 7)))
+    print(df_plot)
 
 
 if __name__ == "__main__":
