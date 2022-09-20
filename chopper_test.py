@@ -36,6 +36,8 @@ def main():
     functions = [
         "file read",
         "flat_profile",
+        # "flatten",
+        # "to_callgraph",
         "load_imbalance",
         "hot_path",
     ]
@@ -61,37 +63,59 @@ def main():
         reset_time(data)
         for run in range(num_runs):
             # file read
-            data["file read"]["timer"].start_phase(f"file read {run}")
-            gf = reader_function(path_to_directory + "/" + path)
-            data["file read"]["timer"].end_phase()
-            data["file read"]["total_time"] += list(
-                data["file read"]["timer"]._times.values()
-            )[run].total_seconds()
-            gf.default_metric = metric
+            if "file read" in functions:
+                data["file read"]["timer"].start_phase(f"file read {run}")
+                gf = reader_function(path_to_directory + "/" + path)
+                data["file read"]["timer"].end_phase()
+                data["file read"]["total_time"] += list(
+                    data["file read"]["timer"]._times.values()
+                )[run].total_seconds()
+                gf.default_metric = metric
 
             # flat profile
-            data["flat_profile"]["timer"].start_phase(f"flat_profile {run}")
-            gf.flat_profile(metric)
-            data["flat_profile"]["timer"].end_phase()
-            data["flat_profile"]["total_time"] += list(
-                data["flat_profile"]["timer"]._times.values()
-            )[run].total_seconds()
+            if "flat_profile" in functions:
+                data["flat_profile"]["timer"].start_phase(f"flat_profile {run}")
+                gf.flat_profile()
+                data["flat_profile"]["timer"].end_phase()
+                data["flat_profile"]["total_time"] += list(
+                    data["flat_profile"]["timer"]._times.values()
+                )[run].total_seconds()
+
+            # flatten
+            if "flatten" in functions:
+                data["flat_profile"]["timer"].start_phase(f"flat_profile {run}")
+                gf.flatten()
+                data["flat_profile"]["timer"].end_phase()
+                data["flat_profile"]["total_time"] += list(
+                    data["flat_profile"]["timer"]._times.values()
+                )[run].total_seconds()
+
+            # to_callgraph
+            if "to_callgraph" in functions:
+                data["flat_profile"]["timer"].start_phase(f"flat_profile {run}")
+                gf.to_callgraph()
+                data["flat_profile"]["timer"].end_phase()
+                data["flat_profile"]["total_time"] += list(
+                    data["flat_profile"]["timer"]._times.values()
+                )[run].total_seconds()
 
             # load_imbalance
-            data["load_imbalance"]["timer"].start_phase(f"load_imbalance {run}")
-            gf.load_imbalance(metric)
-            data["load_imbalance"]["timer"].end_phase()
-            data["load_imbalance"]["total_time"] += list(
-                data["load_imbalance"]["timer"]._times.values()
-            )[run].total_seconds()
+            if "load_imbalance" in functions:
+                data["load_imbalance"]["timer"].start_phase(f"load_imbalance {run}")
+                gf.load_imbalance(metric_columns=metric)
+                data["load_imbalance"]["timer"].end_phase()
+                data["load_imbalance"]["total_time"] += list(
+                    data["load_imbalance"]["timer"]._times.values()
+                )[run].total_seconds()
 
             # hot_path
-            data["hot_path"]["timer"].start_phase(f"hot_path {run}")
-            gf.hot_path(metric=metric)
-            data["hot_path"]["timer"].end_phase()
-            data["hot_path"]["total_time"] += list(
-                data["hot_path"]["timer"]._times.values()
-            )[run].total_seconds()
+            if "hot_path" in functions:
+                data["hot_path"]["timer"].start_phase(f"hot_path {run}")
+                gf.hot_path(metric=metric)
+                data["hot_path"]["timer"].end_phase()
+                data["hot_path"]["total_time"] += list(
+                    data["hot_path"]["timer"]._times.values()
+                )[run].total_seconds()
 
         for function in functions:
             data[function]["Rows in Dataframe"].append(gf.dataframe.shape[0])
