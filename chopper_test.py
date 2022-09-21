@@ -27,7 +27,7 @@ def main():
     # ---------------------------------------------------------------------------------
     json_data = init_json("data.json")
     path_to_directory = "../hatchet-data/quicksilver-only-time"
-    # data identifier must be present in filename
+    # data identifier must be present in file/folder name
     data_identifier = "hpctoolkit"
     reader_function = ht.GraphFrame.from_hpctoolkit
     metric = "REALTIME (sec) (I)"
@@ -35,9 +35,7 @@ def main():
     num_processes = [64, 128, 256, 512]
     functions = [
         "file read",
-        "flat_profile",
-        # "flatten",
-        # "to_callgraph",
+        "to_callgraph",
         "load_imbalance",
         "hot_path",
     ]
@@ -71,25 +69,6 @@ def main():
                     data["file read"]["timer"]._times.values()
                 )[run].total_seconds()
                 gf.default_metric = metric
-
-            # flat profile
-            if "flat_profile" in functions:
-                data["flat_profile"]["timer"].start_phase(f"flat_profile {run}")
-                gf.flat_profile()
-                data["flat_profile"]["timer"].end_phase()
-                data["flat_profile"]["total_time"] += list(
-                    data["flat_profile"]["timer"]._times.values()
-                )[run].total_seconds()
-
-            # flatten
-            if "flatten" in functions:
-                gf_copy = gf.deepcopy()
-                data["flatten"]["timer"].start_phase(f"flatten {run}")
-                gf_copy.flatten()
-                data["flatten"]["timer"].end_phase()
-                data["flatten"]["total_time"] += list(
-                    data["flatten"]["timer"]._times.values()
-                )[run].total_seconds()
 
             # to_callgraph
             if "to_callgraph" in functions:
