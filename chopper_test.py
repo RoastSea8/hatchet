@@ -83,20 +83,23 @@ def main():
 
             # flatten
             if "flatten" in functions:
-                data["flat_profile"]["timer"].start_phase(f"flat_profile {run}")
-                gf.flatten()
-                data["flat_profile"]["timer"].end_phase()
-                data["flat_profile"]["total_time"] += list(
-                    data["flat_profile"]["timer"]._times.values()
+                gf_copy = gf.deepcopy()
+                data["flatten"]["timer"].start_phase(f"flatten {run}")
+                gf_copy.flatten()
+                data["flatten"]["timer"].end_phase()
+                data["flatten"]["total_time"] += list(
+                    data["flatten"]["timer"]._times.values()
                 )[run].total_seconds()
 
             # to_callgraph
             if "to_callgraph" in functions:
-                data["flat_profile"]["timer"].start_phase(f"flat_profile {run}")
-                gf.to_callgraph()
-                data["flat_profile"]["timer"].end_phase()
-                data["flat_profile"]["total_time"] += list(
-                    data["flat_profile"]["timer"]._times.values()
+                gf_copy = gf.deepcopy()
+                gf_copy.drop_index_levels()
+                data["to_callgraph"]["timer"].start_phase(f"to_callgraph {run}")
+                gf_copy.to_callgraph()
+                data["to_callgraph"]["timer"].end_phase()
+                data["to_callgraph"]["total_time"] += list(
+                    data["to_callgraph"]["timer"]._times.values()
                 )[run].total_seconds()
 
             # load_imbalance
