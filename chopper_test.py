@@ -144,7 +144,6 @@ def main():
                 directory = [
                     paths_to_directories[dataset]["path"] + "/" + path
                     for path in directory
-                    if "DS" not in path
                 ]
                 data["construct_from"]["timer"].start_phase(f"construct_from {run}")
                 gfs = ht.GraphFrame.construct_from(directory)
