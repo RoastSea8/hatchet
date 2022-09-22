@@ -26,37 +26,37 @@ def main():
 
     # ---------------------------------------------------------------------------------
     json_data = init_json("data.json")
-    path_to_directory = "../hatchet-data/caliper-lulesh-json"
-    reader_function = ht.GraphFrame.from_caliper
-    metric = "time"
-    num_runs = 1
-    num_processes = [1, 8, 27, 64, 125, 216, 343, 512]
+    path_to_directory = "../hatchet-data/quicksilver-only-time"
+    reader_function = ht.GraphFrame.from_hpctoolkit
+    metric = "REALTIME (sec) (I)"
+    num_runs = 5
+    num_processes = [64, 128, 256, 512]
     # single-graphframe functions
     functions = [
         "file read",
-        # "to_callgraph",
+        "to_callgraph",
         "load_imbalance",
         "hot_path",
     ]
 
     # replace keys with dataset names to appear on x-axis of plot
     paths_to_directories = {
-        "quicksilver": {
-            "path": "../hatchet-data/quicksilver-only-time",
-            "num_processes": [64, 128, 256, 512],
-            "metric": "REALTIME (sec) (I)",
-        },
         "LULESH": {
             "path": "../hatchet-data/caliper-lulesh-json",
             "num_processes": [1, 8, 27, 64, 125, 216, 343, 512],
             "metric": "time",
+        },
+        "quicksilver": {
+            "path": "../hatchet-data/quicksilver-only-time",
+            "num_processes": [64, 128, 256, 512],
+            "metric": "REALTIME (sec) (I)",
         },
     }
     # multi-graphframe functions
     multi_gf_functions = [
         "construct_from",
         "multirun_analysis",
-        # "calculate_speedup_efficiency",
+        "calculate_speedup_efficiency",
     ]
     # ---------------------------------------------------------------------------------
 
