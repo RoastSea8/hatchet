@@ -26,15 +26,15 @@ def main():
 
     # ---------------------------------------------------------------------------------
     json_data = init_json("data.json")
-    path_to_directory = "../hatchet-data/quicksilver-only-time"
-    reader_function = ht.GraphFrame.from_hpctoolkit
-    metric = "REALTIME (sec) (I)"
-    num_runs = 5
-    num_processes = [64, 128, 256, 512]
+    path_to_directory = "../hatchet-data/caliper-lulesh-json"
+    reader_function = ht.GraphFrame.from_caliper
+    metric = "time"
+    num_runs = 1
+    num_processes = [1, 8, 27, 64, 125, 216, 343, 512]
     # single-graphframe functions
     functions = [
         "file read",
-        "to_callgraph",
+        # "to_callgraph",
         "load_imbalance",
         "hot_path",
     ]
@@ -56,7 +56,7 @@ def main():
     multi_gf_functions = [
         "construct_from",
         "multirun_analysis",
-        "calculate_speedup_efficiency",
+        # "calculate_speedup_efficiency",
     ]
     # ---------------------------------------------------------------------------------
 
@@ -70,7 +70,7 @@ def main():
                 # list of average times for each process count
                 "times_list": [],
                 # number of rows in dataframes for each dataset
-                "num_rows": 0,
+                "num_rows": [],
             }
         )
     for function in multi_gf_functions:
@@ -80,12 +80,14 @@ def main():
                 "total_time": 0,
                 # list of average times for each process count
                 "times_list": [],
-                # name of dataset that function is called on
-                "dataset_name": "",
+                # names of datasets that function is called on
+                "dataset_names": [],
             }
         )
+
     dataframes = []
 
+    # single-graphframe function tests
     for path in directory:
         reset_time(data)
         for run in range(num_runs):
@@ -129,15 +131,21 @@ def main():
                 )[run].total_seconds()
 
         for function in functions:
-            data[function]["num_rows"] = gf.dataframe.shape[0]
+            data[function]["num_rows"].append(gf.dataframe.shape[0])
             data[function]["times_list"].append(data[function]["total_time"] / num_runs)
 
+    # multi-graphframe function tests
     for dataset in paths_to_directories.keys():
-        reset_time()
+        reset_time(data)
         for run in range(num_runs):
             # construct_from
             if "construct_from" in multi_gf_functions:
-                directory = natsorted(os.listdir(path_to_directory[dataset]["path"]))
+                directory = natsorted(os.listdir(paths_to_directories[dataset]["path"]))
+                directory = [
+                    paths_to_directories[dataset]["path"] + "/" + path
+                    for path in directory
+                    if "DS" not in path
+                ]
                 data["construct_from"]["timer"].start_phase(f"construct_from {run}")
                 gfs = ht.GraphFrame.construct_from(directory)
                 data["construct_from"]["timer"].end_phase()
@@ -187,13 +195,13 @@ def main():
                 )[run].total_seconds()
 
         for function in multi_gf_functions:
-            data[function]["dataset_name"] = dataset
+            data[function]["dataset_names"].append(dataset)
             data[function]["times_list"].append(data[function]["total_time"] / num_runs)
 
     for function in functions:
         d = {
             "num_processes": num_processes,
-            "Rows in Dataframe": [data[function]["num_rows"]] * len(num_processes),
+            "Rows in Dataframe": data[function]["num_rows"],
             "function": [function] * len(num_processes),
             "time": data[function]["times_list"],
         }
@@ -202,9 +210,9 @@ def main():
             json.dump(json_data, f)
 
     # single-graphframe functions plot
-    for function, data in json_data.items():
+    for function, function_data in json_data.items():
         if function in functions:
-            dataframes.append(pd.DataFrame(data))
+            dataframes.append(pd.DataFrame(function_data))
 
     df_all = pd.concat(dataframes)
     df_pivot = df_all.pivot_table(
@@ -220,7 +228,7 @@ def main():
     # multi-graphframe functions plot
     for function in multi_gf_functions:
         d = {
-            "dataset": [data[function]["dataset_name"]] * len(paths_to_directories),
+            "dataset": data[function]["dataset_names"],
             "function": [function] * len(paths_to_directories),
             "time": data[function]["times_list"],
         }
