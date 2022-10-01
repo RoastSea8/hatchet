@@ -1,45 +1,29 @@
 import os
-import json
 import pandas as pd
 import hatchet as ht
 from natsort import natsorted
 from hatchet.util import timer
 
 
-def reset_time(data):
-    for function in data.keys():
-        data[function]["timer"] = timer.Timer()
-        data[function]["total_time"] = 0
-
-
-def init_json(filename):
-    try:
-        with open(str(filename)) as f:
-            json_data = json.load(f)
-    except FileNotFoundError:
-        with open(str(filename), "w") as f:
-            json_data = {}
-    return json_data
-
-
 def main():
-
     # ---------------------------------------------------------------------------------
-    json_data = init_json("data.json")
+    """SINGLE-GRAPHFRAME VARIABLES"""
     path_to_directory = "../hatchet-data/quicksilver-only-time"
+    sgf_data_filename = "single-gf-data.csv"
     reader_function = ht.GraphFrame.from_hpctoolkit
     metric = "REALTIME (sec) (I)"
-    num_runs = 5
     num_processes = [64, 128, 256, 512]
     # single-graphframe functions
-    functions = [
+    single_gf_functions = [
         "file read",
         "to_callgraph",
         "load_imbalance",
         "hot_path",
     ]
 
+    """MULTI-GRAPHFRAME VARIABLES"""
     # replace keys with dataset names to appear on x-axis of plot
+    mgf_data_filename = "multi-gf-data.csv"
     paths_to_directories = {
         "LULESH": {
             "path": "../hatchet-data/caliper-lulesh-json",
@@ -60,191 +44,155 @@ def main():
     ]
     # ---------------------------------------------------------------------------------
 
-    directory = natsorted(os.listdir(path_to_directory))
-    data = {}
-    for function in functions:
-        data[function] = dict(
-            {
-                "timer": timer.Timer(),
-                "total_time": 0,
-                # list of average times for each process count
-                "times_list": [],
-                # number of rows in dataframes for each dataset
-                "num_rows": [],
-            }
-        )
-    for function in multi_gf_functions:
-        data[function] = dict(
-            {
-                "timer": timer.Timer(),
-                "total_time": 0,
-                # list of average times for each process count
-                "times_list": [],
-                # names of datasets that function is called on
-                "dataset_names": [],
-            }
-        )
-
-    dataframes = []
-
     # single-graphframe function tests
+    directory = natsorted(os.listdir(path_to_directory))
+    single_gf_timer = timer.Timer()
+    num_rows_list = []
+    num_processes_list = []
+
     for path in directory:
-        reset_time(data)
-        for run in range(num_runs):
-            # file read
-            if "file read" in functions:
-                data["file read"]["timer"].start_phase(f"file read {run}")
+        # file read
+        if "file read" in single_gf_functions:
+            with single_gf_timer.phase("file read {}".format(directory.index(path))):
                 gf = reader_function(path_to_directory + "/" + path)
-                data["file read"]["timer"].end_phase()
-                data["file read"]["total_time"] += list(
-                    data["file read"]["timer"]._times.values()
-                )[run].total_seconds()
-                gf.default_metric = metric
+            gf.default_metric = metric
 
-            # to_callgraph
-            if "to_callgraph" in functions:
-                gf_copy = gf.deepcopy()
-                gf_copy.drop_index_levels()
-                data["to_callgraph"]["timer"].start_phase(f"to_callgraph {run}")
+        # to_callgraph
+        if "to_callgraph" in single_gf_functions:
+            gf_copy = gf.deepcopy()
+            gf_copy.drop_index_levels()
+            with single_gf_timer.phase("to_callgraph {}".format(directory.index(path))):
                 gf_copy.to_callgraph()
-                data["to_callgraph"]["timer"].end_phase()
-                data["to_callgraph"]["total_time"] += list(
-                    data["to_callgraph"]["timer"]._times.values()
-                )[run].total_seconds()
 
-            # load_imbalance
-            if "load_imbalance" in functions:
-                data["load_imbalance"]["timer"].start_phase(f"load_imbalance {run}")
+        # load_imbalance
+        if "load_imbalance" in single_gf_functions:
+            with single_gf_timer.phase(
+                "load_imbalance {}".format(directory.index(path))
+            ):
                 gf.load_imbalance(metric_columns=metric)
-                data["load_imbalance"]["timer"].end_phase()
-                data["load_imbalance"]["total_time"] += list(
-                    data["load_imbalance"]["timer"]._times.values()
-                )[run].total_seconds()
 
-            # hot_path
-            if "hot_path" in functions:
-                data["hot_path"]["timer"].start_phase(f"hot_path {run}")
+        # hot_path
+        if "hot_path" in single_gf_functions:
+            with single_gf_timer.phase("hot_path {}".format(directory.index(path))):
                 gf.hot_path(metric=metric)
-                data["hot_path"]["timer"].end_phase()
-                data["hot_path"]["total_time"] += list(
-                    data["hot_path"]["timer"]._times.values()
-                )[run].total_seconds()
 
-        for function in functions:
-            data[function]["num_rows"].append(gf.dataframe.shape[0])
-            data[function]["times_list"].append(data[function]["total_time"] / num_runs)
+        for f in single_gf_functions:
+            num_processes_list.append(num_processes[directory.index(path)])
+            num_rows_list.append(gf.dataframe.shape[0])
+
+    times = single_gf_timer.__str__().split("\n")
+    times = times[1 : len(times) - 1]
+    function_list = []
+    time_list = []
+    for i in range(len(times)):
+        function_list.append(times[i].split(":")[0].strip())
+        time_list.append(float((times[i].split(":")[1].strip())[:-1]))
+
+    data = {}
+    data["function"] = [f[:-2] for f in function_list]
+    data["time"] = time_list
+    data["num_rows"] = num_rows_list
+    data["num_processes"] = num_processes_list
+
+    dataframe = pd.DataFrame(data)
+
+    try:
+        df_old = pd.read_csv(sgf_data_filename)
+        if not df_old.equals(dataframe):
+            df_new = pd.concat([df_old, dataframe])
+            df_new = df_new[["function", "time", "num_rows", "num_processes"]]
+            df_new.to_csv(sgf_data_filename)
+    except (pd.errors.EmptyDataError, FileNotFoundError):
+        dataframe.to_csv(sgf_data_filename)
 
     # multi-graphframe function tests
-    for dataset in paths_to_directories.keys():
-        reset_time(data)
-        for run in range(num_runs):
-            # construct_from
-            if "construct_from" in multi_gf_functions:
-                directory = natsorted(os.listdir(paths_to_directories[dataset]["path"]))
-                directory = [
-                    paths_to_directories[dataset]["path"] + "/" + path
-                    for path in directory
-                ]
-                data["construct_from"]["timer"].start_phase(f"construct_from {run}")
-                gfs = ht.GraphFrame.construct_from(directory)
-                data["construct_from"]["timer"].end_phase()
-                data["construct_from"]["total_time"] += list(
-                    data["construct_from"]["timer"]._times.values()
-                )[run].total_seconds()
-                for gf in gfs:
-                    gf.default_metric = paths_to_directories[dataset]["metric"]
-                    # check that number of given process counts is equal to number of graphframes generated
-                    assert len(gfs) == len(
-                        paths_to_directories[dataset]["num_processes"]
-                    ), f"number of process counts does not match number of graphframes for {dataset}"
-                    gf.update_metadata(
-                        num_processes=paths_to_directories[dataset]["num_processes"][
-                            gfs.index(gf)
-                        ]
-                    )
+    multi_gf_timer = timer.Timer()
+    dataset_list = []
+    total_rows_list = []
 
-            # multirun_analysis
-            if "multirun_analysis" in multi_gf_functions:
-                data["multirun_analysis"]["timer"].start_phase(
-                    f"multirun_analysis {run}"
+    for dataset in paths_to_directories.keys():
+        # construct_from
+        if "construct_from" in multi_gf_functions:
+            directory = natsorted(os.listdir(paths_to_directories[dataset]["path"]))
+            directory = [
+                paths_to_directories[dataset]["path"] + "/" + path
+                for path in directory
+                if "DS" not in path
+            ]
+            with multi_gf_timer.phase(
+                "construct_from {}".format(
+                    list(paths_to_directories.keys()).index(dataset)
                 )
-                ht.GraphFrame.multirun_analysis(
+            ):
+                gfs = ht.GraphFrame.construct_from(directory)
+            total_rows = 0
+            for gf in gfs:
+                gf.default_metric = paths_to_directories[dataset]["metric"]
+                # check that number of given process counts is equal to number of graphframes generated
+                assert len(gfs) == len(
+                    paths_to_directories[dataset]["num_processes"]
+                ), f"number of process counts does not match number of graphframes for {dataset}"
+                gf.update_metadata(
+                    num_processes=paths_to_directories[dataset]["num_processes"][
+                        gfs.index(gf)
+                    ]
+                )
+                total_rows += gf.dataframe.shape[0]
+
+        # multirun_analysis
+        if "multirun_analysis" in multi_gf_functions:
+            with multi_gf_timer.phase(
+                "multirun_analysis {}".format(
+                    list(paths_to_directories.keys()).index(dataset)
+                )
+            ):
+                ht.Chopper.multirun_analysis(
                     graphframes=gfs,
                     pivot_index="num_processes",
                     columns="name",
                     metric=paths_to_directories[dataset]["metric"],
                     threshold=0,
                 )
-                data["multirun_analysis"]["timer"].end_phase()
-                data["multirun_analysis"]["total_time"] += list(
-                    data["multirun_analysis"]["timer"]._times.values()
-                )[run].total_seconds()
 
-            # calculate_speedup_efficiency
-            if "calculate_speedup_efficiency" in multi_gf_functions:
-                data["calculate_speedup_efficiency"]["timer"].start_phase(
-                    f"calculate_speedup_efficiency {run}"
+        # calculate_speedup_efficiency
+        if "calculate_speedup_efficiency" in multi_gf_functions:
+            with multi_gf_timer.phase(
+                "calculate_speedup_efficiency {}".format(
+                    list(paths_to_directories.keys()).index(dataset)
                 )
-                ht.GraphFrame.calculate_speedup_efficiency(
+            ):
+                ht.Chopper.calculate_speedup_efficiency(
                     graphframes=gfs, metric=paths_to_directories[dataset]["metric"]
                 )
-                data["calculate_speedup_efficiency"]["timer"].end_phase()
-                data["calculate_speedup_efficiency"]["total_time"] += list(
-                    data["calculate_speedup_efficiency"]["timer"]._times.values()
-                )[run].total_seconds()
 
-        for function in multi_gf_functions:
-            data[function]["dataset_names"].append(dataset)
-            data[function]["times_list"].append(data[function]["total_time"] / num_runs)
+        for f in multi_gf_functions:
+            dataset_list.append(dataset)
+            total_rows_list.append(total_rows)
 
-    for function in functions:
-        d = {
-            "num_processes": num_processes,
-            "Rows in Dataframe": data[function]["num_rows"],
-            "function": [function] * len(num_processes),
-            "time": data[function]["times_list"],
-        }
-        json_data[function] = d
-        with open("data.json", "w") as f:
-            json.dump(json_data, f)
+    times = multi_gf_timer.__str__().split("\n")
+    times = times[1 : len(times) - 1]
+    function_list = []
+    time_list = []
+    for i in range(len(times)):
+        function_list.append(times[i].split(":")[0].strip())
+        time_list.append(float((times[i].split(":")[1].strip())[:-1]))
 
-    # single-graphframe functions plot
-    for function, function_data in json_data.items():
-        if function in functions:
-            dataframes.append(pd.DataFrame(function_data))
+    data = {}
+    data["function"] = [f[:-2] for f in function_list]
+    data["time"] = time_list
+    data["dataset"] = dataset_list
+    data["total_rows"] = total_rows_list
 
-    df_all = pd.concat(dataframes)
-    df_pivot = df_all.pivot_table(
-        index="Rows in Dataframe", columns="function", values="time"
-    )
-    df_plot = df_pivot.loc[:, :].plot.line(figsize=(10, 7))
+    dataframe = pd.DataFrame(data)
 
-    print(df_pivot)
-    print(df_plot)
-
-    dataframes.clear()
-
-    # multi-graphframe functions plot
-    for function in multi_gf_functions:
-        d = {
-            "dataset": data[function]["dataset_names"],
-            "function": [function] * len(paths_to_directories),
-            "time": data[function]["times_list"],
-        }
-        json_data[function] = d
-        with open("data.json", "w") as f:
-            json.dump(json_data, f)
-
-    for function, data in json_data.items():
-        if function in multi_gf_functions:
-            dataframes.append(pd.DataFrame(data))
-
-    df_all = pd.concat(dataframes)
-    df_pivot = df_all.pivot_table(index="dataset", columns="function", values="time")
-    df_plot = df_pivot.loc[:, :].plot.line(figsize=(10, 7))
-
-    print(df_pivot)
-    print(df_plot)
+    try:
+        df_old = pd.read_csv(mgf_data_filename)
+        if not df_old.equals(dataframe):
+            df_new = pd.concat([df_old, dataframe])
+            df_new = df_new[["function", "time", "dataset", "total_rows"]]
+            df_new.to_csv(mgf_data_filename)
+    except (pd.errors.EmptyDataError, FileNotFoundError):
+        dataframe.to_csv(mgf_data_filename)
 
 
 if __name__ == "__main__":
